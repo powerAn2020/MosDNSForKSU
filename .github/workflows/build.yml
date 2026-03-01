@@ -127,6 +127,7 @@ jobs:
             dat/ \
             scripts/ \
             webroot/
+            META-INF/
 
           echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
 

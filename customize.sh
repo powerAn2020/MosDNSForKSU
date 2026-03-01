@@ -115,4 +115,3 @@ ui_print "- mosdns 版本: $($MODPATH/bin/mosdns version 2>/dev/null | head -1 |
 ui_print "- 模块目录: $MODPATH"
 ui_print "- 数据目录: $DATADIR"
 ui_print "- 安装完成！请在 KernelSU 管理器中打开 WebUI 配置"
-ui_print ""
