@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================
+   主题变量系统
+   ============================ */
+
+/* 深色主题（默认） */
+:root,
+.dark {
+  --bg-primary: #09090b;
+  /* zinc-950 */
+  --bg-secondary: #18181b;
+  /* zinc-900 */
+  --bg-card: rgba(39, 39, 42, 0.6);
+  /* zinc-800/60 */
+  --bg-input: rgba(9, 9, 11, 0.5);
+  --bg-terminal: #0d1117;
+  --bg-nav: rgba(24, 24, 27, 0.8);
+
+  --text-primary: #e4e4e7;
+  /* zinc-200 */
+  --text-secondary: #a1a1aa;
+  /* zinc-400 */
+  --text-muted: #71717a;
+  /* zinc-500 */
+  --text-heading: #ffffff;
+
+  --border-primary: #27272a;
+  /* zinc-800 */
+  --border-secondary: rgba(63, 63, 70, 0.5);
+  /* zinc-700/50 */
+  --border-input: #3f3f46;
+  /* zinc-700 */
+
+  --tab-active-bg: #3f3f46;
+  --tab-active-text: #ffffff;
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-hover: #52525b;
+}
+
+/* 亮色主题 */
+.light {
+  --bg-primary: #f8fafc;
+  /* slate-50 */
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(241, 245, 249, 0.8);
+  /* slate-100/80 */
+  --bg-input: #ffffff;
+  --bg-terminal: #f1f5f9;
+  --bg-nav: rgba(255, 255, 255, 0.9);
+
+  --text-primary: #1e293b;
+  /* slate-800 */
+  --text-secondary: #475569;
+  /* slate-600 */
+  --text-muted: #94a3b8;
+  /* slate-400 */
+  --text-heading: #0f172a;
+  /* slate-900 */
+
+  --border-primary: #e2e8f0;
+  /* slate-200 */
+  --border-secondary: rgba(203, 213, 225, 0.5);
+  /* slate-300/50 */
+  --border-input: #cbd5e1;
+  /* slate-300 */
+
+  --tab-active-bg: #e2e8f0;
+  --tab-active-text: #0f172a;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+}
+
+/* ============================
+   全局基础样式
+   ============================ */
+
+@layer base {
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    @apply antialiased;
+    transition: background-color 0.3s, color 0.3s;
+  }
+}
+
+/* 定制滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* ============================
+   实用 CSS 类（使用主题变量）
+   ============================ */
+
+.theme-bg {
+  background-color: var(--bg-primary);
+}
+
+.theme-bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.theme-bg-card {
+  background-color: var(--bg-card);
+}
+
+.theme-bg-input {
+  background-color: var(--bg-input);
+}
+
+.theme-bg-terminal {
+  background-color: var(--bg-terminal);
+}
+
+.theme-bg-nav {
+  background-color: var(--bg-nav);
+}
+
+.theme-text {
+  color: var(--text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+
+.theme-text-muted {
+  color: var(--text-muted);
+}
+
+.theme-text-heading {
+  color: var(--text-heading);
+}
+
+.theme-border {
+  border-color: var(--border-primary);
+}
+
+.theme-border-secondary {
+  border-color: var(--border-secondary);
+}
+
+.theme-border-input {
+  border-color: var(--border-input);
+}
+
+/* Tab 激活态 */
+.theme-tab-active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-text);
+}
+
+/* 路由过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(5px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}

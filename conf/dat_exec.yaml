@@ -1,0 +1,93 @@
+plugins:
+  ################ 数据源 ################
+
+  # GeoIP
+  - tag: geoip_private
+    type: ip_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geoip_private.txt"
+
+  - tag: geoip_cn
+    type: ip_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geoip_cn.txt"
+
+  # GeoSite
+  - tag: geosite_cn
+    type: domain_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geosite_cn.txt"
+        - "/data/adb/mosdns/conf/rule/whitelist.txt"
+
+  - tag: geosite_gfw
+    type: domain_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geosite_gfw.txt"
+        - "/data/adb/mosdns/conf/rule/greylist.txt"
+
+  - tag: geosite_nocn
+    type: domain_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geosite_geolocation-!cn.txt"
+
+  - tag: geosite_ads
+    type: domain_set
+    args:
+      files:
+        - "/data/adb/mosdns/dat/geosite_category-ads-all.txt"
+
+  ################ 缓存 ################
+
+  - tag: cache_lan
+    type: cache
+    args:
+      size: 8192
+      lazy_cache_ttl: 86400
+
+  - tag: cache_wan
+    type: cache
+    args:
+      size: 131072
+      lazy_cache_ttl: 86400
+
+  ################ ECS 处理 ################
+
+  - tag: ecs_cn
+    type: "ecs_handler"
+    args:
+      forward: false
+      preset: "114.114.114.114"
+      send: false
+      mask4: 24
+      mask6: 48
+
+  - tag: no_ecs
+    type: "ecs_handler"
+    args:
+      forward: false
+      preset: ""
+      send: false
+      mask4: 24
+      mask6: 48
+
+  ################ TTL 调整 ################
+
+  - tag: ttl_1m
+    type: sequence
+    args:
+      - exec: ttl 60
+
+  - tag: ttl_5m
+    type: sequence
+    args:
+      - exec: ttl 300
+
+  - tag: ttl_1h
+    type: sequence
+    args:
+      - exec: ttl 3600

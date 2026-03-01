@@ -1,0 +1,7 @@
+id=MosdnsForKSU
+name=Mosdns For KSU
+version=v1.0.0
+versionCode=1
+author=powerAn2020
+description=MosDNS v5 DNS分流模块，支持无泄漏DNS解析、GeoIP/GeoSite智能分流、WebUI管理
+updateJson=https://github.com/powerAn2020/MosDNSForKSU/releases/latest/download/update.json

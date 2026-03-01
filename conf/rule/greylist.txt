@@ -1,0 +1,7 @@
+# 灰名单域名 - 强制走境外 DNS 解析
+# 每行一个域名，支持以下格式:
+#   domain:example.com  - 匹配 example.com 及其子域名
+#   full:www.example.com - 精确匹配
+#   keyword:example     - 关键词匹配
+#   regexp:\.example\.com$ - 正则匹配
+# 适用场景: 被 DNS 污染的域名、需要代理访问的域名等

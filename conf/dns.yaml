@@ -1,0 +1,113 @@
+plugins:
+  ################ 国内 DNS ################
+
+  # 阿里 DNS (DoH + DoT + H3)
+  - tag: ali
+    type: forward
+    args:
+      concurrent: 3
+      upstreams:
+        - addr: "https://dns.alidns.com/dns-query"
+          dial_addr: "223.5.5.5"
+        - addr: "https://dns.alidns.com/dns-query"
+          dial_addr: "223.6.6.6"
+        - addr: "tls://dns.alidns.com"
+          dial_addr: "223.5.5.5"
+          enable_pipeline: true
+        - addr: "https://dns.alidns.com/dns-query"
+          dial_addr: "223.5.5.5"
+          enable_http3: true
+
+  # DNSPod (DoH + DoT)
+  - tag: dnspod
+    type: forward
+    args:
+      concurrent: 3
+      upstreams:
+        - addr: "https://doh.pub/dns-query"
+          dial_addr: "1.12.12.12"
+        - addr: "https://doh.pub/dns-query"
+          dial_addr: "120.53.53.53"
+        - addr: "tls://dot.pub"
+          dial_addr: "1.12.12.12"
+          enable_pipeline: true
+        - addr: "tls://dot.pub"
+          dial_addr: "120.53.53.53"
+          enable_pipeline: true
+
+  ################ 境外 DNS ################
+
+  # Google DNS (DoH + DoT + H3)
+  - tag: google
+    type: forward
+    args:
+      concurrent: 3
+      upstreams:
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8"
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.4.4"
+        - addr: "tls://dns.google"
+          dial_addr: "8.8.8.8"
+          enable_pipeline: true
+        - addr: "tls://dns.google"
+          dial_addr: "8.8.4.4"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8"
+          enable_http3: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.4.4"
+          enable_http3: true
+
+  # Cloudflare DNS (DoH + DoT)
+  - tag: cloudflare
+    type: forward
+    args:
+      concurrent: 3
+      upstreams:
+        - addr: "https://1.1.1.1/dns-query"
+          dial_addr: "1.1.1.1"
+        - addr: "tls://1.1.1.1"
+          dial_addr: "1.1.1.1"
+          enable_pipeline: true
+        - addr: "tls://1.0.0.1"
+          dial_addr: "1.0.0.1"
+          enable_pipeline: true
+
+  ################ 本地代理 DNS ################
+
+  # 通过本地代理端口转发（如 sing-box）
+  - tag: forward_remote
+    type: forward
+    args:
+      concurrent: 1
+      upstreams:
+        - addr: "127.0.0.1:7874"
+
+  ################ LAN DNS ################
+
+  # 本地 DNS（用于 LAN 查询）
+  - tag: local
+    type: forward
+    args:
+      concurrent: 1
+      upstreams:
+        - addr: "udp://127.0.0.1:53"
+
+  ################ 拒绝响应 ################
+
+  - tag: reject_2
+    type: sequence
+    args:
+      - exec: reject 2
+
+  - tag: reject_3
+    type: sequence
+    args:
+      - exec: reject 3
+
+  - tag: reject_5
+    type: sequence
+    args:
+      - exec: reject 5

@@ -1,0 +1,74 @@
+export default {
+    nav: {
+        dashboard: 'Dashboard',
+        settings: 'Settings',
+        log: 'Log'
+    },
+    dashboard: {
+        title: 'Mosdns Service',
+        status: 'Status',
+        running: 'Running',
+        stopped: 'Stopped',
+        uptime: 'Uptime',
+        stop: 'Stop Service',
+        start: 'Start Service',
+        stats: 'Live Traffic (Since Start)',
+        totalQueries: 'Total Queries',
+        cacheHit: 'Cache Hit',
+        cnRoute: 'CN Route',
+        cnRouteSub: 'Direct upstream',
+        nocnRoute: 'Foreign Route',
+        nocnRouteSub: 'Via local proxy',
+        reject: 'Rejected',
+        rejectSub: 'Ads / QType65'
+    },
+    settings: {
+        title: 'Management',
+        tabBasic: 'Basic',
+        tabRules: 'Rules',
+        tabAdvanced: 'Expert',
+        controlTitle: 'Behavior',
+        autoStart: 'Auto Start',
+        autoStartDesc: 'Start mosdns on device boot',
+        dnsRedirect: 'DNS Redirect (iptables)',
+        dnsRedirectDesc: 'Hijack port 53 queries on LAN',
+        adBlock: 'Ad & Tracker Blocking',
+        adBlockDesc: 'Reject queries matching ad rules',
+        networkTitle: 'Network & Ports',
+        listenPort: 'Mosdns Listen Port',
+        proxyPort: 'Proxy Socks/HTTP Port',
+        proxyPortPrefix: 'Default 127.0.0.1:',
+        geodataTitle: 'GeoData (GeoSite & GeoIP)',
+        updateGeodata: 'Update GeoData',
+        updatingGeodata: 'Downloading...',
+        whitelist: 'Whitelist (Force CN)',
+        whitelistPlaceholder: 'One per line, e.g. domain: baidu.com',
+        greylist: 'Greylist (Force Foreign)',
+        greylistPlaceholder: 'One per line, e.g. regex: ...',
+        save: 'Save',
+        saveApply: 'Save & Apply',
+        saving: 'Saving...',
+        advancedWarning: 'Editing YAML files may prevent mosdns from starting. After saving, click "Apply Now" to validate syntax.',
+        dangerWarning: 'Danger Zone',
+        saveFile: 'Save File',
+        applyNow: 'Apply Now (Validate & Restart)',
+        dnsYaml: 'dns.yaml (Upstream)',
+        datExecYaml: 'dat_exec.yaml (Data)',
+        configYaml: 'config.yaml (Core)',
+        applyConfirm: 'This will restart Mosdns. Continue?',
+        applySuccess: 'Config applied, service restarted.',
+        applyFail: 'Config error, service not restarted:'
+    },
+    log: {
+        title: 'Runtime Log',
+        noLogs: 'No log output yet...'
+    },
+    theme: {
+        dark: 'Dark',
+        light: 'Light'
+    },
+    lang: {
+        zh: '中文',
+        en: 'English'
+    }
+}

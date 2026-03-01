@@ -1,0 +1,136 @@
+name: Build Module
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mosdns_release_type:
+        description: "Mosdns 版本类型"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - release
+          - pre-release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get mosdns version
+        id: mosdns
+        run: |
+          RELEASE_TYPE="${{ github.event.inputs.mosdns_release_type || 'release' }}"
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+
+          if [ "$RELEASE_TYPE" = "pre-release" ]; then
+            echo "🔍 Fetching latest pre-release..."
+            LATEST=$(curl -s https://api.github.com/repos/IrineSistiana/mosdns/releases | \
+              jq -r '[.[] | select(.prerelease == true)][0].tag_name')
+          else
+            echo "🔍 Fetching latest stable release..."
+            LATEST=$(curl -s https://api.github.com/repos/IrineSistiana/mosdns/releases/latest | jq -r '.tag_name')
+          fi
+
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "❌ Failed to get mosdns version, falling back to latest release"
+            LATEST=$(curl -s https://api.github.com/repos/IrineSistiana/mosdns/releases/latest | jq -r '.tag_name')
+          fi
+
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "✅ mosdns version: $LATEST ($RELEASE_TYPE)"
+
+          # 下载 arm64 二进制
+          mkdir -p bin
+          curl -sL "https://github.com/IrineSistiana/mosdns/releases/download/${LATEST}/mosdns-linux-arm64.zip" -o /tmp/mosdns.zip
+          unzip -o /tmp/mosdns.zip -d /tmp/mosdns_extract
+          cp /tmp/mosdns_extract/mosdns bin/mosdns
+          chmod +x bin/mosdns
+
+      - name: Download GeoData
+        run: |
+          mkdir -p dat
+
+          # Loyalsoldier v2ray-rules-dat
+          BASE_URL="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release"
+
+          curl -sL "${BASE_URL}/direct-list.txt" -o dat/geosite_cn.txt
+          curl -sL "${BASE_URL}/gfw.txt" -o dat/geosite_gfw.txt
+          curl -sL "${BASE_URL}/proxy-list.txt" -o dat/geosite_geolocation-!cn.txt
+          curl -sL "${BASE_URL}/reject-list.txt" -o dat/geosite_category-ads-all.txt
+
+          # GeoIP CN (从 SukkaW/Surge 获取，纯文本 CIDR 列表)
+          curl -sL "https://raw.githubusercontent.com/Hackl0us/GeoIP2-CN/release/CN-ip-cidr.txt" -o dat/geoip_cn.txt
+
+          # 私网 IP 列表
+          cat > dat/geoip_private.txt <<'EOF'
+          10.0.0.0/8
+          172.16.0.0/12
+          192.168.0.0/16
+          127.0.0.0/8
+          169.254.0.0/16
+          224.0.0.0/4
+          240.0.0.0/4
+          fd00::/8
+          fe80::/10
+          EOF
+          # 去除前导空格
+          sed -i 's/^[[:space:]]*//' dat/geoip_private.txt
+
+      - name: Update module version
+        run: |
+          MOSDNS_VER="${{ steps.mosdns.outputs.version }}"
+          DATE=$(date +%Y%m%d)
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="v${DATE}-dev"
+          fi
+
+          sed -i "s/^version=.*/version=${VERSION}/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=${DATE}/" module.prop
+
+          echo "Module version: $VERSION, mosdns: $MOSDNS_VER"
+
+      - name: Package module
+        run: |
+          MODULE_NAME="MosdnsForKSU"
+          ZIP_NAME="${MODULE_NAME}-$(grep '^version=' module.prop | cut -d= -f2).zip"
+
+          zip -r "$ZIP_NAME" \
+            module.prop \
+            customize.sh \
+            service.sh \
+            bin/ \
+            conf/ \
+            dat/ \
+            scripts/ \
+            webroot/ \
+            -x "*.git*" \
+            -x "*.github*" \
+            -x "node_modules/*" \
+            -x "webroot_src/*"
+
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MosdnsForKSU-module
+          path: ${{ env.zip_name }}
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.zip_name }}
+          generate_release_notes: true

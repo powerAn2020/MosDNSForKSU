@@ -1,0 +1,74 @@
+export default {
+    nav: {
+        dashboard: '仪表盘',
+        settings: '设置',
+        log: '日志'
+    },
+    dashboard: {
+        title: 'Mosdns 服务',
+        status: '运行状态',
+        running: '运行中',
+        stopped: '已停止',
+        uptime: '运行时长',
+        stop: '停止服务',
+        start: '启动服务',
+        stats: '实时流量 (自启动)',
+        totalQueries: '总查询',
+        cacheHit: '缓存命中',
+        cnRoute: '国内路由',
+        cnRouteSub: '直连上游',
+        nocnRoute: '境外路由',
+        nocnRouteSub: '走本地代理',
+        reject: '拦截请求',
+        rejectSub: '广告 / QName65'
+    },
+    settings: {
+        title: '管理与配置',
+        tabBasic: '基础设置',
+        tabRules: '黑白名单',
+        tabAdvanced: '专家模式',
+        controlTitle: '控制行为',
+        autoStart: '开机自启',
+        autoStartDesc: '随系统启动运行 mosdns',
+        dnsRedirect: 'DNS 重定向 (iptables)',
+        dnsRedirectDesc: '自动劫持局域网 53 端口查询',
+        adBlock: '广告与隐私拦截',
+        adBlockDesc: '根据规则拒答广告 tracker',
+        networkTitle: '端口与节点',
+        listenPort: 'Mosdns 监听地址与端口',
+        proxyPort: '代理节点 Socks/HTTP 端口',
+        proxyPortPrefix: '默认 127.0.0.1:',
+        geodataTitle: '路由规则库 (GeoSite & GeoIP)',
+        updateGeodata: '开始更新 GeoData',
+        updatingGeodata: '云端下载解析中...',
+        whitelist: '白名单 (强制走国内)',
+        whitelistPlaceholder: '一行一个，支持 domain: baidu.com, full: google.cn 等',
+        greylist: '灰名单 (强制走境外代理)',
+        greylistPlaceholder: '一行一个，支持 regex: 等',
+        save: '保存',
+        saveApply: '保存更改并应用',
+        saving: '保存中...',
+        advancedWarning: '编辑 YAML 配置文件可能导致 mosdns 无法启动。修改并保存后请点击底部的 "立即应用" 判断语法是否合法。',
+        dangerWarning: '危险操作警告',
+        saveFile: '保存文件',
+        applyNow: '立即应用 (校验并重启服务)',
+        dnsYaml: 'dns.yaml (上游节点)',
+        datExecYaml: 'dat_exec.yaml (数据定义)',
+        configYaml: 'config.yaml (核心架构)',
+        applyConfirm: '应用操作将会重启 Mosdns，是否继续？',
+        applySuccess: '配置应用成功，服务已重启。',
+        applyFail: '配置错误，服务未重启：'
+    },
+    log: {
+        title: '运行日志',
+        noLogs: '暂无日志输出...'
+    },
+    theme: {
+        dark: '深色',
+        light: '浅色'
+    },
+    lang: {
+        zh: '中文',
+        en: 'English'
+    }
+}
