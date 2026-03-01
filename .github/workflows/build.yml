@@ -85,6 +85,18 @@ jobs:
           # 去除前导空格
           sed -i 's/^[[:space:]]*//' dat/geoip_private.txt
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build WebUI
+        run: |
+          cd webroot_src
+          npm ci
+          npm run build
+          echo "✅ WebUI built to webroot/"
+
       - name: Update module version
         run: |
           MOSDNS_VER="${{ steps.mosdns.outputs.version }}"
@@ -114,11 +126,7 @@ jobs:
             conf/ \
             dat/ \
             scripts/ \
-            webroot/ \
-            -x "*.git*" \
-            -x "*.github*" \
-            -x "node_modules/*" \
-            -x "webroot_src/*"
+            webroot/
 
           echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
 
