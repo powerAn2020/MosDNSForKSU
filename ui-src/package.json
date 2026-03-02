@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && 7z u ../webroot.zip ../webroot/*",
+    "build": "vite build",
     "preview": "vite preview",
-    "postbuild": "adb -s ed81ec57 push ../webroot.zip /sdcard/Download/webroot.zip"
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
