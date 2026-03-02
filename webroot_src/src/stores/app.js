@@ -31,8 +31,24 @@ export const useAppStore = defineStore('app', () => {
     const fetchSettings = async () => {
         try {
             const res = await execApi('get_settings')
+            let data = null
             if (res.code === 0 && res.data) {
-                settings.value = res.data
+                data = res.data
+            } else if (!res.code && Object.keys(res).length > 0) {
+                // 兼容直接返回扁平 JSON 的情况
+                data = res
+            }
+
+            if (data) {
+                // 数值归一化 (防止字符串类型的端口导致 isDirty 故障)
+                const numericFields = ['listen_port', 'proxy_port', 'cache_lan_size', 'cache_wan_size', 'lazy_cache_ttl']
+                numericFields.forEach(field => {
+                    if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
+                        const num = Number(data[field])
+                        if (!isNaN(num)) data[field] = num
+                    }
+                })
+                settings.value = data
             }
         } catch (e) {
             console.error('Failed to fetch settings', e)

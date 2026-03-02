@@ -31,6 +31,7 @@ MosdnsForKSU/
 ├── module.prop            # KernelSU 模块元信息
 ├── customize.sh           # 安装脚本
 ├── service.sh             # 开机自启服务
+├── action.sh              # WebUI 条目快速操作脚本 (Start/Stop)
 ├── conf/                  # mosdns 默认配置模板
 │   ├── config.yaml        # 主配置（五级队列分流）
 │   ├── dns.yaml           # 上游 DNS 定义
@@ -38,7 +39,7 @@ MosdnsForKSU/
 │   └── rule/              # 白名单 & 灰名单
 ├── scripts/
 │   └── api.sh             # WebUI Shell RPC 后端（16 条命令）
-├── webroot_src/           # 前端源码 (Vue 3 + Vite + Tailwind CSS)
+├── ui-src/                # 前端源码 (Vue 3 + Vite + Tailwind CSS)
 └── .github/workflows/
     └── build.yml          # CI：下载 mosdns + 构建 WebUI + 打包发布
 ```
@@ -75,7 +76,7 @@ DNS 查询 → pre_sequence (预处理/拒绝/广告过滤)
 
 ```bash
 # 前端开发
-cd webroot_src
+cd ui-src
 npm install
 npm run dev       # 启动 Vite 开发服务器 (含 Mock 数据)
 npm run build     # 构建到 ../webroot/

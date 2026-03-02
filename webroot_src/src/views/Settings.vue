@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { execApi } from '@/api/kernelsu'
+import { execApi, spawnApi, setDebug, getDebug } from '@/api/kernelsu'
 import { 
   ArrowDownTrayIcon,
   CheckCircleIcon,
@@ -10,7 +10,9 @@ import {
   Cog6ToothIcon,
   DocumentTextIcon,
   ShieldExclamationIcon,
-  ListBulletIcon
+  ListBulletIcon,
+  ArrowPathIcon,
+  InformationCircleIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -19,10 +21,34 @@ const appStore = useAppStore()
 const localSettings = ref({})
 const isSaving = ref(false)
 const isUpdatingGeo = ref(false)
-const geoUpdateStatus = ref('')
+const showGeoModal = ref(false)
+const geoUpdateLogs = ref('')
+const toast = ref({ show: false, msg: '', type: 'success' })
+const confirmModal = ref({ show: false, title: '', msg: '', onConfirm: null })
 const rawConfigs = ref({ whitelist: '', greylist: '', config: '', dns: '', dat_exec: '' })
 const activeTab = ref('basic')
 const activeTabConfigs = ref('dns')
+const debugMode = ref(getDebug())
+
+const toggleDebug = (val) => {
+  debugMode.value = val
+  setDebug(val)
+}
+
+const showToast = (msg, type = 'success') => {
+  toast.value = { show: true, msg, type }
+  setTimeout(() => { toast.value.show = false }, 3000)
+}
+
+const openConfirm = (title, msg, onConfirm) => {
+  confirmModal.value = { show: true, title, msg, onConfirm }
+}
+
+const closeConfirm = (isConfirm) => {
+  const { onConfirm } = confirmModal.value
+  confirmModal.value.show = false
+  if (isConfirm && onConfirm) onConfirm()
+}
 
 onMounted(async () => {
   await appStore.fetchSettings()
@@ -50,46 +76,101 @@ const fetchRawConfigs = async () => {
 }
 
 const isDirty = computed(() => {
-  return JSON.stringify(localSettings.value) !== JSON.stringify(appStore.settings) && activeTab.value === 'basic'
+  if (activeTab.value !== 'basic' || Object.keys(localSettings.value).length === 0) return false
+  const s1 = localSettings.value
+  const s2 = appStore.settings
+  const fields = ['auto_start', 'dns_redirect', 'ad_block', 'listen_port', 'proxy_port']
+  return fields.some(k => s1[k] != s2[k])
 })
 
 const saveSettings = async () => {
   if (isSaving.value) return
   isSaving.value = true
   try {
+    // 1. 停止服务
+    await execApi('stop')
+    
+    // 2. 保存设置
     const jsonStr = JSON.stringify(localSettings.value)
     const res = await execApi('save_settings', `'${jsonStr}'`)
-    if (res.code === 0) await appStore.fetchSettings()
-  } catch (e) { console.error('Save failed', e) }
+    
+    // 3. 启动服务 (无论保存成功与否，由于已经停止，尝试重新拉起)
+    await execApi('start')
+    
+    if (res.code === 0) {
+      // 成功后立即同步本地状态，避免 isDirty 竞态
+      await appStore.fetchSettings()
+      localSettings.value = JSON.parse(JSON.stringify(appStore.settings))
+      showToast(t('settings.saveSuccess'))
+    } else {
+      showToast(res.msg || t('settings.saveFail'), 'error')
+    }
+    // 4. 刷新状态
+    await appStore.fetchStatus()
+  } catch (e) { 
+    console.error('Save failed', e)
+    showToast(t('settings.saveFail'), 'error')
+  }
   finally { isSaving.value = false }
 }
 
 const updateGeoData = async () => {
   if (isUpdatingGeo.value) return
   isUpdatingGeo.value = true
-  geoUpdateStatus.value = t('settings.updatingGeodata')
+  showGeoModal.value = true
+  geoUpdateLogs.value = t('settings.updatingGeodata') + '\n\n'
+  
   try {
-    const res = await execApi('update_geodata')
-    geoUpdateStatus.value = res.msg || (res.code === 0 ? '✓ OK' : '⚠ partial')
-    setTimeout(() => { geoUpdateStatus.value = '' }, 3000)
-  } catch (e) { geoUpdateStatus.value = '✗ ' + e.message }
-  finally { isUpdatingGeo.value = false }
+    const res = await spawnApi('update_geodata', '', { 
+      timeout: 5*60*1000,//超时时间
+      onStdout: (data) => {
+        geoUpdateLogs.value += data
+      }
+    })
+    geoUpdateLogs.value += `\n[Result] ${res.msg || (res.code === 0 ? '✓ OK' : '⚠ partial')}`
+  } catch (e) {
+    geoUpdateLogs.value += `\n[Error] ✗ ${e.message}`
+  } finally {
+    isUpdatingGeo.value = false
+  }
 }
 
 const saveSingleConfig = async (type, content) => {
   try {
+    // 1. 停止服务
+    await execApi('stop')
+    
+    // 2. 保存文件
     const safeContent = content.replace(/'/g, "'\\''")
     const res = await execApi('save_config', `${type} '${safeContent}'`)
-    alert(res.code === 0 ? `${type} ✓` : `✗: ${res.msg}`)
-  } catch(e) { console.error(e); alert('✗') }
+    
+    // 3. 启动服务
+    await execApi('start')
+    
+    if (res.code === 0) {
+      showToast(`${type} ${t('settings.saveSuccess')}`)
+      await fetchRawConfigs() // 刷新本地缓存
+    } else {
+      showToast(`${type} ${t('settings.saveFail')}: ${res.msg}`, 'error')
+    }
+    // 4. 刷新状态
+    await appStore.fetchStatus()
+  } catch(e) { 
+    console.error(e)
+    showToast(t('settings.saveFail'), 'error')
+  }
 }
 
 const applyConfig = async () => {
-  if (confirm(t('settings.applyConfirm'))) {
+  openConfirm(t('settings.confirmTitle'), t('settings.applyConfirm'), async () => {
     const res = await execApi('apply_config')
-    alert(res.code === 0 ? t('settings.applySuccess') : `${t('settings.applyFail')}\n${res.msg}`)
-    if (res.code === 0) appStore.fetchStatus()
-  }
+    if (res.code === 0) {
+      showToast(t('settings.applySuccess'))
+      appStore.fetchStatus()
+    } else {
+      showToast(`${t('settings.applyFail')} ${res.msg}`, 'error')
+    }
+  })
 }
 </script>
 
@@ -154,6 +235,18 @@ const applyConfig = async () => {
             <div class="w-11 h-6 bg-gray-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
           </label>
         </div>
+
+        <!-- Toggle: 调试模式 -->
+        <div class="flex items-center justify-between pt-2 border-t theme-border-secondary">
+          <div>
+            <div class="theme-text font-medium">{{ t('settings.debug') }}</div>
+            <div class="text-xs theme-text-muted">{{ t('settings.debugDesc') }}</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" :checked="debugMode" @change="toggleDebug($event.target.checked)" class="sr-only peer">
+            <div class="w-11 h-6 bg-gray-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+          </label>
+        </div>
       </div>
 
       <!-- 端口配置 -->
@@ -162,14 +255,14 @@ const applyConfig = async () => {
         <div class="space-y-3">
           <div>
             <label class="block text-xs theme-text-secondary mb-1">{{ t('settings.listenPort') }}</label>
-            <input v-model="localSettings.listen_port" type="text" class="w-full theme-bg-input border theme-border-input rounded-xl px-3 py-2 theme-text text-sm focus:outline-none focus:border-indigo-500 transition-colors">
+            <input v-model.number="localSettings.listen_port" type="number" class="w-full theme-bg-input border theme-border-input rounded-xl px-3 py-2 theme-text text-sm focus:outline-none focus:border-indigo-500 transition-colors">
           </div>
           <div>
             <label class="block text-xs theme-text-secondary mb-1 flex justify-between">
               <span>{{ t('settings.proxyPort') }}</span>
               <span class="text-indigo-500">{{ t('settings.proxyPortPrefix') }}</span>
             </label>
-            <input v-model="localSettings.proxy_port" type="text" class="w-full theme-bg-input border theme-border-input rounded-xl px-3 py-2 theme-text text-sm focus:outline-none focus:border-indigo-500 transition-colors">
+            <input v-model.number="localSettings.proxy_port" type="number" class="w-full theme-bg-input border theme-border-input rounded-xl px-3 py-2 theme-text text-sm focus:outline-none focus:border-indigo-500 transition-colors">
           </div>
         </div>
       </div>
@@ -177,16 +270,11 @@ const applyConfig = async () => {
       <!-- GeoData -->
       <div class="theme-bg-card rounded-3xl p-5 border theme-border-secondary space-y-4">
         <h3 class="text-sm font-semibold theme-text-secondary tracking-wider">{{ t('settings.geodataTitle') }}</h3>
-        <button @click="updateGeoData" :disabled="isUpdatingGeo"
-          class="w-full rounded-xl py-3 px-4 font-semibold text-sm flex justify-center items-center space-x-2 transition-all theme-bg-input theme-text hover:bg-indigo-600 hover:text-white border theme-border-input focus:outline-none">
-          <ArrowDownTrayIcon class="w-5 h-5" :class="{ 'animate-bounce': isUpdatingGeo }" />
-          <span>{{ isUpdatingGeo ? t('settings.updatingGeodata') : t('settings.updateGeodata') }}</span>
+        <button @click="updateGeoData"
+          class="w-full rounded-xl py-3 px-4 font-semibold text-sm flex justify-center items-center space-x-2 transition-all border focus:outline-none theme-bg-input theme-text hover:bg-indigo-600 hover:text-white theme-border-input">
+          <ArrowDownTrayIcon class="w-5 h-5" />
+          <span>{{ t('settings.updateGeodata') }}</span>
         </button>
-        <div v-if="geoUpdateStatus" class="flex items-center space-x-1 mt-2 px-1">
-          <CheckCircleIcon v-if="geoUpdateStatus.includes('✓')" class="w-4 h-4 text-emerald-400" />
-          <ExclamationTriangleIcon v-else class="w-4 h-4 text-amber-400" />
-          <span class="text-xs theme-text-secondary">{{ geoUpdateStatus }}</span>
-        </div>
       </div>
     </div>
 
@@ -202,7 +290,7 @@ const applyConfig = async () => {
             {{ t('settings.save') }}
           </button>
         </div>
-        <textarea v-model="rawConfigs.whitelist" class="flex-1 w-full theme-bg-terminal theme-text-secondary font-mono text-xs p-4 focus:outline-none resize-none leading-relaxed" :placeholder="t('settings.whitelistPlaceholder')"></textarea>
+        <textarea v-model="rawConfigs.whitelist" class="flex-1 w-full min-h-[30vh] theme-bg-terminal theme-text-secondary font-mono text-xs p-4 focus:outline-none resize-none leading-relaxed" :placeholder="t('settings.whitelistPlaceholder')"></textarea>
       </div>
 
       <div class="theme-bg-card rounded-3xl flex flex-col flex-1 border theme-border-secondary overflow-hidden">
@@ -215,7 +303,7 @@ const applyConfig = async () => {
             {{ t('settings.save') }}
           </button>
         </div>
-        <textarea v-model="rawConfigs.greylist" class="flex-1 w-full theme-bg-terminal theme-text-secondary font-mono text-xs p-4 focus:outline-none resize-none leading-relaxed" :placeholder="t('settings.greylistPlaceholder')"></textarea>
+        <textarea v-model="rawConfigs.greylist" class="flex-1 w-full min-h-[30vh] theme-bg-terminal theme-text-secondary font-mono text-xs p-4 focus:outline-none resize-none leading-relaxed" :placeholder="t('settings.greylistPlaceholder')"></textarea>
       </div>
     </div>
 
@@ -241,7 +329,7 @@ const applyConfig = async () => {
           </button>
         </div>
         <textarea v-model="rawConfigs[activeTabConfigs]"
-          class="flex-1 w-full bg-transparent text-emerald-600 dark:text-emerald-400/90 font-mono text-[11px] p-4 focus:outline-none resize-none leading-relaxed"
+          class="flex-1 w-full min-h-[50vh] bg-transparent text-emerald-600 dark:text-emerald-400/90 font-mono text-[11px] p-4 focus:outline-none resize-none leading-relaxed"
           spellcheck="false"></textarea>
       </div>
 
@@ -262,5 +350,62 @@ const applyConfig = async () => {
         <span>{{ isSaving ? t('settings.saving') : t('settings.saveApply') }}</span>
       </button>
     </div>
+
+    <!-- ===== GeoData 更新日志弹窗 ===== -->
+    <div v-show="showGeoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div class="theme-bg-card w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[80vh] border theme-border-secondary">
+        <div class="p-4 border-b theme-border flex items-center space-x-2 bg-indigo-50/50 dark:bg-indigo-900/20">
+          <ArrowPathIcon v-if="isUpdatingGeo" class="w-5 h-5 text-indigo-500 animate-spin" />
+          <CheckCircleIcon v-else class="w-5 h-5 text-emerald-500" />
+          <h3 class="font-bold theme-text">{{ t('settings.geodataUpdateLogTitle') || 'GeoData Update Log' }}</h3>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto theme-bg-terminal">
+          <pre class="text-xs font-mono theme-text-secondary whitespace-pre-wrap break-all">{{ geoUpdateLogs }}</pre>
+        </div>
+        <div class="p-4 border-t theme-border bg-gray-50 dark:bg-zinc-900/50 flex justify-end">
+          <button @click="showGeoModal = false" :disabled="isUpdatingGeo"
+            class="px-6 py-2 rounded-xl font-bold transition-all"
+            :class="isUpdatingGeo 
+              ? 'bg-gray-200 dark:bg-zinc-700 text-gray-400 dark:text-zinc-500 cursor-not-allowed' 
+              : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20'">
+            {{ t('settings.close') || 'Close' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Toast 通知 ===== -->
+    <transition name="fade">
+      <div v-if="toast.show" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 backdrop-blur-md min-w-[200px]"
+        :class="toast.type === 'error' ? 'bg-red-500/90 text-white' : 'bg-emerald-500/90 text-white'">
+        <CheckCircleIcon v-if="toast.type === 'success'" class="w-6 h-6" />
+        <ExclamationTriangleIcon v-else class="w-6 h-6" />
+        <span class="font-bold">{{ toast.msg }}</span>
+      </div>
+    </transition>
+
+    <!-- ===== 确认弹窗 ===== -->
+    <transition name="fade">
+      <div v-if="confirmModal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="theme-bg-card w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border theme-border-secondary">
+          <div class="p-6 text-center space-y-4">
+            <div class="bg-indigo-50 dark:bg-indigo-900/30 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-indigo-500">
+              <InformationCircleIcon class="w-10 h-10" />
+            </div>
+            <h3 class="text-xl font-bold theme-text">{{ confirmModal.title }}</h3>
+            <p class="theme-text-secondary text-sm">{{ confirmModal.msg }}</p>
+          </div>
+          <div class="p-4 bg-gray-50/50 dark:bg-zinc-900/50 flex space-x-3">
+            <button @click="closeConfirm(false)" class="flex-1 py-3 font-bold theme-text-secondary hover:theme-bg-input rounded-2xl transition-all">
+              {{ t('settings.cancel') }}
+            </button>
+            <button @click="closeConfirm(true)" class="flex-1 py-3 font-bold bg-indigo-600 text-white hover:bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/20 transition-all">
+              {{ t('settings.confirm') || 'OK' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>

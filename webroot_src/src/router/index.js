@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createMemoryHistory } from 'vue-router'
 
 const routes = [
     {
@@ -26,8 +26,7 @@ const routes = [
 ]
 
 const router = createRouter({
-    // KernelSU WebView 中推荐使用 Hash 模式以防路由寻址失败
-    history: createWebHashHistory(),
+    history: createMemoryHistory(),
     routes,
 })
 

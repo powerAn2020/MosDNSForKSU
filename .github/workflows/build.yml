@@ -21,6 +21,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,9 +51,11 @@ jobs:
           echo "version=$LATEST" >> $GITHUB_OUTPUT
           echo "✅ mosdns version: $LATEST ($RELEASE_TYPE)"
 
-          # 下载 arm64 二进制
+      - name: Download mosdns binary (${{ matrix.arch }})
+        run: |
+          LATEST="${{ steps.mosdns.outputs.version }}"
           mkdir -p bin
-          curl -sL "https://github.com/IrineSistiana/mosdns/releases/download/${LATEST}/mosdns-linux-arm64.zip" -o /tmp/mosdns.zip
+          curl -sL "https://github.com/IrineSistiana/mosdns/releases/download/${LATEST}/mosdns-linux-${{ matrix.arch }}.zip" -o /tmp/mosdns.zip
           unzip -o /tmp/mosdns.zip -d /tmp/mosdns_extract
           cp /tmp/mosdns_extract/mosdns bin/mosdns
           chmod +x bin/mosdns
@@ -92,7 +97,7 @@ jobs:
 
       - name: Build WebUI
         run: |
-          cd webroot_src
+          cd ui-src
           npm ci
           npm run build
           echo "✅ WebUI built to webroot/"
@@ -111,12 +116,13 @@ jobs:
           sed -i "s/^version=.*/version=${VERSION}/" module.prop
           sed -i "s/^versionCode=.*/versionCode=${DATE}/" module.prop
 
-          echo "Module version: $VERSION, mosdns: $MOSDNS_VER"
+          echo "Module version: $VERSION, mosdns: $MOSDNS_VER, arch: ${{ matrix.arch }}"
 
       - name: Package module
         run: |
           MODULE_NAME="MosdnsForKSU"
-          ZIP_NAME="${MODULE_NAME}-$(grep '^version=' module.prop | cut -d= -f2).zip"
+          VERSION=$(grep '^version=' module.prop | cut -d= -f2)
+          ZIP_NAME="${MODULE_NAME}-${VERSION}-${{ matrix.arch }}.zip"
 
           zip -r "$ZIP_NAME" \
             module.prop \
@@ -127,14 +133,16 @@ jobs:
             dat/ \
             scripts/ \
             webroot/ \
-            META-INF/
+            META-INF/ \
+            action.sh
+
 
           echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MosdnsForKSU-module
+          name: MosdnsForKSU-${{ matrix.arch }}
           path: ${{ env.zip_name }}
 
       - name: Release

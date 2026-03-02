@@ -1,56 +1,223 @@
-import { exec } from 'kernelsu'
+import { exec, spawn, moduleInfo } from 'kernelsu'
 
-// 判断是否真机环境 (尝试执行一个简单的 KernelSU API)
-let isKsuEnv = false
-try {
-    const testCmd = exec('echo test')
-    if (testCmd && testCmd.stdout === 'test\n') {
-        isKsuEnv = true
-    }
-} catch (e) {
-    console.log('Not running in KernelSU environment, using Mock API.')
+// ==========================================
+// KernelSU API 封装
+// ==========================================
+
+const DEFAULT_MODDIR = '/data/adb/modules/MosdnsForKSU'
+
+// 调试模式：从 localStorage 读取，默认关闭
+let _debug = localStorage.getItem('mosdns-debug') === 'true'
+
+export function setDebug(enabled) {
+    _debug = enabled
+    localStorage.setItem('mosdns-debug', String(enabled))
+    if (enabled) console.log('[KSU] 🐛 Debug mode enabled')
 }
 
-const MODDIR = '/data/adb/modules/MosdnsForKSU'
-const API_SCRIPT = `sh ${MODDIR}/scripts/api.sh`
+export function getDebug() {
+    return _debug
+}
 
-// 执行命令封装 (自动处理 Mock 和真实调用)
-export const execApi = async (cmd, args = '') => {
-    const fullCmd = `${API_SCRIPT} ${cmd} ${args}`
+function log(...args) {
+    if (_debug) console.log('[KSU]', ...args)
+}
 
-    if (isKsuEnv) {
-        return new Promise((resolve, reject) => {
-            try {
-                const result = exec(fullCmd)
-                // 尝试解析 JSON
-                if (result.errno !== 0 && result.errno !== undefined) {
-                    console.error('[API Error]', result)
-                    reject(new Error(`Exit code: ${result.errno}`))
-                    return
-                }
-                try {
-                    const json = JSON.parse(result.stdout)
-                    resolve(json)
-                } catch (e) {
-                    resolve({ code: -1, msg: 'Invalid JSON response', raw: result.stdout })
-                }
-            } catch (err) {
-                reject(err)
-            }
-        })
+function isKsuEnvironment() {
+    // @ts-ignore
+    return typeof ksu !== 'undefined'
+}
+
+async function getModuleDir() {
+    if (!isKsuEnvironment()) return DEFAULT_MODDIR
+    try {
+        let info = await moduleInfo()
+        if (typeof info === 'string') {
+            try { info = JSON.parse(info) } catch (e) { /* ignore */ }
+        }
+        log('moduleInfo:', info)
+        return (info && info.moduleDir) ? info.moduleDir : DEFAULT_MODDIR
+    } catch (e) {
+        console.warn('[KSU] moduleInfo() failed, using default:', DEFAULT_MODDIR)
+        return DEFAULT_MODDIR
+    }
+}
+
+async function ksuExec(cmd) {
+    if (isKsuEnvironment()) {
+        log('>>> exec:', cmd)
+        const startTime = performance.now()
+        const { errno, stdout, stderr } = await exec(cmd)
+        const duration = Math.round(performance.now() - startTime)
+        if (errno === 0) {
+            log(`<<< [${duration}ms] stdout:`, stdout?.substring(0, 500))
+            return stdout
+        } else {
+            log(`<<< [${duration}ms] ❌ errno=${errno}, stderr:`, stderr)
+            throw new Error(stderr || `Command failed with errno ${errno}`)
+        }
     } else {
-        // ---- Mock 环境模拟延迟和返回值 ----
-        console.log(`[Mock API] Executing: ${fullCmd}`)
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve(getMockResponse(cmd))
-            }, 500) // 模拟 500ms 延迟
-        })
+        if (import.meta.env.DEV) {
+            log('>>> (mock) exec:', cmd)
+            return ''
+        }
+        return ''
     }
 }
 
 // ==========================================
-// Mock 数据生成
+// API 层
+// ==========================================
+
+let _moddir = null
+
+async function getApiScript() {
+    if (!_moddir) {
+        _moddir = await getModuleDir()
+        log('MODDIR resolved:', _moddir)
+    }
+    return `${_moddir}/scripts/api.sh`
+}
+
+export const execApi = async (cmd, args = '') => {
+    const env = isKsuEnvironment() ? 'KSU' : 'Mock'
+    log(`⚡ execApi(${cmd}, ${args}) [${env}]`)
+
+    if (isKsuEnvironment()) {
+        const script = await getApiScript()
+        const fullCmd = `${script} ${cmd} ${args}`
+        try {
+            const stdout = await ksuExec(fullCmd)
+            try {
+                const parsed = JSON.parse(stdout)
+                log(`✅ ${cmd} response:`, parsed)
+                return parsed
+            } catch (e) {
+                log(`⚠️ ${cmd} non-JSON response:`, stdout?.substring(0, 200))
+                return { code: -1, msg: 'Invalid JSON', raw: stdout }
+            }
+        } catch (err) {
+            log(`❌ ${cmd} error:`, err.message)
+            return { code: -1, msg: err.message }
+        }
+    } else if (import.meta.env.DEV) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const mock = getMockResponse(cmd)
+                log(`✅ ${cmd} (mock):`, mock)
+                resolve(mock)
+            }, 300)
+        })
+    } else {
+        return { code: -1, msg: 'Not in KSU environment' }
+    }
+}
+
+/**
+ * 非阻塞 API 调用 — 使用 spawn 避免 UI 卡死
+ * 适合长时间运行的命令
+ */
+export const spawnApi = (cmd, args = '', { timeout = 60000, onStdout } = {}) => {
+    const env = isKsuEnvironment() ? 'KSU' : 'Mock'
+    log(`🚀 spawnApi(${cmd}, ${args}) [${env}]`)
+
+    if (isKsuEnvironment()) {
+        return new Promise(async (resolve, reject) => {
+            const script = await getApiScript()
+            const fullCmd = `${script} ${cmd} ${args}`
+            log('>>> spawn:', fullCmd)
+
+            let stdout = ''
+            let stderr = ''
+            let settled = false
+            const startTime = performance.now()
+
+            let timer = null
+            if (timeout > 0) {
+                timer = setTimeout(() => {
+                    if (!settled) {
+                        settled = true
+                        log(`⏱️ spawn timeout after ${timeout}ms`)
+                        reject(new Error('timeout'))
+                    }
+                }, timeout)
+            }
+
+            try {
+                const argsArray = [cmd]
+                if (args && typeof args === 'string') {
+                    argsArray.push(...args.split(' ').filter(a => a))
+                }
+
+                log('>>> spawn:', script, argsArray)
+                const child = spawn(script, argsArray)
+
+                child.stdout.on('data', (data) => {
+                    if (settled) return
+                    stdout += data
+                    log('📤 stdout chunk:', data.substring(0, 200))
+                    if (onStdout) onStdout(data)
+                })
+
+                child.stderr.on('data', (data) => {
+                    if (settled) return
+                    stderr += data
+                    log('📤 stderr chunk:', data.substring(0, 200))
+                })
+
+                child.on('exit', (code) => {
+                    if (settled) return
+                    settled = true
+                    if (timer) clearTimeout(timer)
+                    const duration = Math.round(performance.now() - startTime)
+                    log(`<<< spawn exit [${duration}ms] code=${code}`)
+
+                    if (code === 0) {
+                        try {
+                            const parsed = JSON.parse(stdout)
+                            log(`✅ ${cmd} (spawn) response:`, parsed)
+                            resolve(parsed)
+                        } catch (e) {
+                            log(`⚠️ ${cmd} (spawn) non-JSON:`, stdout.substring(0, 200))
+                            resolve({ code: 0, msg: stdout.trim() || 'OK', raw: stdout })
+                        }
+                    } else {
+                        log(`❌ ${cmd} (spawn) failed:`, stderr)
+                        resolve({ code: code, msg: stderr.trim() || `exit code ${code}` })
+                    }
+                })
+
+                child.on('error', (err) => {
+                    if (settled) return
+                    settled = true
+                    if (timer) clearTimeout(timer)
+                    log(`❌ ${cmd} (spawn) error:`, err)
+                    reject(err)
+                })
+            } catch (err) {
+                if (!settled) {
+                    settled = true
+                    clearTimeout(timer)
+                    reject(err)
+                }
+            }
+        })
+    } else if (import.meta.env.DEV) {
+        // Mock 环境
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const mock = getMockResponse(cmd)
+                log(`✅ ${cmd} (spawn mock):`, mock)
+                resolve(mock)
+            }, 2000) // 模拟稍长的延迟
+        })
+    } else {
+        return Promise.resolve({ code: -1, msg: 'Not in KSU environment' })
+    }
+}
+
+// ==========================================
+// Mock 数据
 // ==========================================
 let mockState = {
     running: true,
@@ -98,9 +265,9 @@ function getMockResponse(cmd) {
             }
 
         case 'get_metrics':
-            // 模拟简单的 Prometheus 输出
-            const metricsText = `
-# HELP mosdns_query_total Total queries
+            return {
+                code: 0,
+                data: `# HELP mosdns_query_total Total queries
 # TYPE mosdns_query_total counter
 mosdns_query_total{type="udp"} 12503
 mosdns_query_total{type="tcp"} 432
@@ -109,14 +276,25 @@ mosdns_query_total{type="tcp"} 432
 plugin_query_total{plugin="dns_cn"} 8432
 plugin_query_total{plugin="dns_nocn"} 4021
 plugin_query_total{plugin="cache_lan"} 211
-plugin_query_total{plugin="reject_ad"} 132
-      `.trim()
-            return { code: 0, data: metricsText }
+plugin_query_total{plugin="reject_ad"} 132`
+            }
 
         case 'get_log':
             return {
                 code: 0,
-                data: "2023-10-27T10:00:00Z INFO mosdns started\n2023-10-27T10:01:00Z WARN something happened\n"
+                data: '2023-10-27T10:00:00Z INFO mosdns started\n2023-10-27T10:01:00Z WARN something happened\n'
+            }
+
+        case 'get_config':
+            return {
+                code: 0,
+                data: {
+                    whitelist: '# whitelist example\\ndomain: baidu.com',
+                    greylist: '# greylist example\\ndomain: google.com',
+                    config: '# config.yaml content',
+                    dns: '# dns.yaml content',
+                    dat_exec: '# dat_exec.yaml content'
+                }
             }
 
         default:

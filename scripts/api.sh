@@ -113,9 +113,12 @@ cmd_start() {
 }
 
 cmd_stop() {
-    # 先清理 iptables
-    cmd_redirect_disable > /dev/null 2>&1
-
+    # 检查 DNS 重定向配置
+    redirect=$(get_setting "dns_redirect" "false")
+    if [ "$redirect" = "true" ]; then
+        # 清理 iptables
+        cmd_redirect_disable > /dev/null 2>&1
+    fi
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
         if kill -0 "$PID" 2>/dev/null; then
@@ -275,7 +278,8 @@ cmd_apply_config() {
 
 cmd_get_settings() {
     if [ -f "$SETTINGS_FILE" ]; then
-        cat "$SETTINGS_FILE"
+        content=$(cat "$SETTINGS_FILE")
+        echo "{\"code\":0,\"data\":$content}"
     else
         cat <<EOF
 {
@@ -458,7 +462,7 @@ cmd_redirect_disable() {
 # ============================================================
 
 CMD="$1"
-shift
+[ $# -gt 0 ] && shift
 
 case "$CMD" in
     status)           cmd_status ;;
