@@ -21,6 +21,7 @@ CONFIG_FILE="${CONF_DIR}/config.yaml"
 PID_FILE="${RUN_DIR}/mosdns.pid"
 LOG_FILE="${RUN_DIR}/mosdns.log"
 SETTINGS_FILE="${DATADIR}/settings.json"
+START_FILE="${RUN_DIR}/mosdns.start"
 
 # 确保目录存在
 mkdir -p "$RUN_DIR" "$CONF_DIR" "$DAT_DIR" "$RULE_DIR"
@@ -64,17 +65,23 @@ sync_settings_to_config() {
     local listen_port=$(get_setting "listen_port" "5335")
     local proxy_port=$(get_setting "proxy_port" "7874")
     
+    # 确保端口不为空
+    [ -z "$listen_port" ] && listen_port="5335"
+    [ -z "$proxy_port" ] && proxy_port="7874"
+
     # 同步监听端口到 config.yaml
     if [ -f "$CONFIG_FILE" ]; then
-        sed -i "s/listen: \":*.*\"/listen: \":${listen_port}\"/" "$CONFIG_FILE"
-        sed -i "s/listen: :[0-9]*/listen: :${listen_port}/" "$CONFIG_FILE"
+        # 仅匹配带引号或不带引号的 listen: 端口
+        # 使用更精确的正则，避免误伤注释
+        sed -i "s/listen: \":[0-9]*\"/listen: \":${listen_port}\"/g" "$CONFIG_FILE"
+        sed -i "s/listen: :[0-9]*/listen: :${listen_port}/g" "$CONFIG_FILE"
     fi
     
     # 同步代理端口到 dns.yaml
     local dns_yaml="${CONF_DIR}/dns.yaml"
     if [ -f "$dns_yaml" ]; then
-        # 匹配 127.0.0.1:端口 的格式进行替换
-        sed -i "s/127\.0\.0\.1:[0-9]*/127.0.0.1:${proxy_port}/g" "$dns_yaml"
+        # 仅针对 forward_remote 标签内的 addr 进行同步，避免误伤 local (port 53)
+        sed -i "/tag: forward_remote/,/addr:/ s/127\.0\.0\.1:[0-9]*/127.0.0.1:${proxy_port}/" "$dns_yaml"
     fi
 }
 
@@ -121,6 +128,7 @@ cmd_start() {
 
     if kill -0 "$MOSDNS_PID" 2>/dev/null; then
         echo "$MOSDNS_PID" > "$PID_FILE"
+        date +%s > "$START_FILE"
 
         # 检查 DNS 重定向配置
         redirect=$(get_setting "dns_redirect" "false")
@@ -152,6 +160,7 @@ cmd_stop() {
             # 强制杀死
             kill -0 "$PID" 2>/dev/null && kill -9 "$PID"
             rm -f "$PID_FILE"
+            rm -f "$START_FILE"
             json_ok "mosdns stopped"
         else
             rm -f "$PID_FILE"
@@ -179,14 +188,18 @@ cmd_status() {
         pid=$(cat "$PID_FILE")
         if kill -0 "$pid" 2>/dev/null; then
             running=true
-            if [ -d "/proc/$pid" ]; then
-                start_time=$(stat -c %Y "/proc/$pid" 2>/dev/null || echo 0)
-                now=$(date +%s)
-                [ "$start_time" -gt 0 ] && uptime_sec=$((now - start_time))
+            if [ -f "$START_FILE" ]; then
+                start_time=$(cat "$START_FILE")
+            else
+                # Fallback to PID file mod time
+                start_time=$(stat -c %Y "$PID_FILE" 2>/dev/null || echo 0)
             fi
+            now=$(date +%s)
+            [ "$start_time" -gt 0 ] && uptime_sec=$((now - start_time))
         else
             pid=0
             rm -f "$PID_FILE"
+            rm -f "$START_FILE"
         fi
     fi
 
@@ -196,7 +209,7 @@ cmd_status() {
 
     # 监听端口
     local listen_port
-    listen_port=$(grep -A1 'udp_server' "$CONFIG_FILE" 2>/dev/null | grep 'listen:' | head -1 | sed 's/.*listen:[[:space:]]*//' | tr -d '"' || echo ":5335")
+    listen_port=$(grep 'listen:' "$CONFIG_FILE" 2>/dev/null | grep -o ':[0-9]*' | head -1 | tr -d '"' || echo ":5335")
 
     # DNS 重定向状态
     local redirect
@@ -309,6 +322,7 @@ cmd_get_settings() {
   "data": {
     "auto_start": true,
     "dns_redirect": false,
+    "ipv6_support": false,
     "listen_port": "5335",
     "log_level": "warn",
     "api_listen": "127.0.0.1:8338",
@@ -461,20 +475,33 @@ cmd_redirect_enable() {
     # 先清理旧规则
     cmd_redirect_disable > /dev/null 2>&1
 
-    iptables -t nat -A OUTPUT -p tcp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
-    iptables -t nat -A OUTPUT -p udp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
+    iptables -t nat -A OUTPUT -p tcp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
+    iptables -t nat -A OUTPUT -p udp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
 
-    json_ok "dns redirect enabled to port $port"
+    # IPv6 重定向
+    ipv6_support=$(get_setting "ipv6_support" "false")
+    if [ "$ipv6_support" = "true" ]; then
+        ip6tables -t nat -A OUTPUT -p tcp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
+        ip6tables -t nat -A OUTPUT -p udp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
+    fi
+
+    json_ok "dns redirect enabled to port $port (ipv6: $ipv6_support)"
 }
 
 cmd_redirect_disable() {
     local port
     port=$(get_setting "listen_port" "5335")
 
-    iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
-    iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
+    iptables -t nat -D OUTPUT -p tcp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
+    iptables -t nat -D OUTPUT -p udp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
     iptables -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
     iptables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination "127.0.0.1:${port}" 2>/dev/null
+
+    # 清理 IPv6
+    ip6tables -t nat -D OUTPUT -p tcp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
+    ip6tables -t nat -D OUTPUT -p udp --dport 53 -m owner ! --uid-owner 0 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
+    ip6tables -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
+    ip6tables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination "[::1]:${port}" 2>/dev/null
 
     json_ok "dns redirect disabled"
 }

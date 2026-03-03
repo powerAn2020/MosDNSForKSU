@@ -47,6 +47,7 @@ const fetchMetrics = async () => {
 }
 
 onMounted(() => {
+  appStore.fetchStatus()
   fetchMetrics()
   pollTimer = setInterval(() => {
     appStore.fetchStatus()

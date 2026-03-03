@@ -79,7 +79,7 @@ const isDirty = computed(() => {
   if (activeTab.value !== 'basic' || Object.keys(localSettings.value).length === 0) return false
   const s1 = localSettings.value
   const s2 = appStore.settings
-  const fields = ['auto_start', 'dns_redirect', 'ad_block', 'listen_port', 'proxy_port']
+  const fields = ['auto_start', 'dns_redirect', 'ipv6_support', 'ad_block', 'listen_port', 'proxy_port']
   return fields.some(k => s1[k] != s2[k])
 })
 
@@ -220,6 +220,18 @@ const applyConfig = async () => {
           </div>
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" v-model="localSettings.dns_redirect" class="sr-only peer">
+            <div class="w-11 h-6 bg-gray-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+          </label>
+        </div>
+
+        <!-- Toggle: IPv6 支持 -->
+        <div class="flex items-center justify-between pt-2 border-t theme-border-secondary">
+          <div>
+            <div class="theme-text font-medium">{{ t('settings.ipv6Support') }}</div>
+            <div class="text-xs theme-text-muted">{{ t('settings.ipv6SupportDesc') }}</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" v-model="localSettings.ipv6_support" class="sr-only peer">
             <div class="w-11 h-6 bg-gray-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
           </label>
         </div>

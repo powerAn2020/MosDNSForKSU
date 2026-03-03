@@ -76,6 +76,7 @@ if [ ! -f "${DATADIR}/settings.json" ]; then
   "data": {
     "auto_start": true,
     "dns_redirect": false,
+    "ipv6_support": false,
     "listen_port": "5335",
     "log_level": "warn",
     "api_listen": "127.0.0.1:8338",

@@ -32,6 +32,8 @@ export default {
         autoStartDesc: 'Start mosdns on device boot',
         dnsRedirect: 'DNS Redirect (iptables)',
         dnsRedirectDesc: 'Hijack port 53 queries on LAN',
+        ipv6Support: 'IPv6 Redirect (ip6tables)',
+        ipv6SupportDesc: 'Hijack IPv6 DNS queries (Kernel support required)',
         adBlock: 'Ad & Tracker Blocking',
         adBlockDesc: 'Reject queries matching ad rules',
         networkTitle: 'Network & Ports',

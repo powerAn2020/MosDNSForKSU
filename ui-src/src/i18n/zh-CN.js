@@ -32,6 +32,8 @@ export default {
         autoStartDesc: '随系统启动运行 mosdns',
         dnsRedirect: 'DNS 重定向 (iptables)',
         dnsRedirectDesc: '自动劫持局域网 53 端口查询',
+        ipv6Support: 'IPv6 重定向 (ip6tables)',
+        ipv6SupportDesc: '劫持 IPv6 DNS 请求 (需要内核支持)',
         adBlock: '广告与隐私拦截',
         adBlockDesc: '根据规则拒答广告 tracker',
         networkTitle: '端口与节点',
