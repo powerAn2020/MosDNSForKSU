@@ -42,35 +42,36 @@
 
 /* 亮色主题 */
 .light {
-  --bg-primary: #f8fafc;
-  /* slate-50 */
+  --bg-primary: #fdfdff;
+  /* 极浅蓝白 */
   --bg-secondary: #ffffff;
-  --bg-card: rgba(241, 245, 249, 0.8);
-  /* slate-100/80 */
+  --bg-card: #f8faff;
+  /* 浅蓝白卡片 */
   --bg-input: #ffffff;
-  --bg-terminal: #f1f5f9;
-  --bg-nav: rgba(255, 255, 255, 0.9);
+  --bg-terminal: #f8fafc;
+  --bg-nav: rgba(255, 255, 255, 0.95);
 
-  --text-primary: #1e293b;
-  /* slate-800 */
-  --text-secondary: #475569;
-  /* slate-600 */
-  --text-muted: #94a3b8;
-  /* slate-400 */
-  --text-heading: #0f172a;
-  /* slate-900 */
+  --text-primary: #1e1b4b;
+  /* indigo-950 */
+  --text-secondary: #47456b;
+  /* 略带蓝调的灰 */
+  --text-muted: #6b7280;
+  /* gray-500 */
+  --text-heading: #1e1b4b;
+  /* indigo-950 */
 
-  --border-primary: #e2e8f0;
-  /* slate-200 */
-  --border-secondary: rgba(203, 213, 225, 0.5);
-  /* slate-300/50 */
-  --border-input: #cbd5e1;
-  /* slate-300 */
+  --border-primary: #eef2ff;
+  /* indigo-50 */
+  --border-secondary: #e0e7ff;
+  /* indigo-100 */
+  --border-input: #d1d5db;
+  /* gray-300 */
 
-  --tab-active-bg: #e2e8f0;
-  --tab-active-text: #0f172a;
-  --scrollbar-thumb: #cbd5e1;
-  --scrollbar-hover: #94a3b8;
+  --tab-active-bg: #4f46e5;
+  /* indigo-600 */
+  --tab-active-text: #ffffff;
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-hover: #9ca3af;
 }
 
 /* ============================

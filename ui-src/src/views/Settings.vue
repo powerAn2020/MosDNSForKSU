@@ -309,10 +309,10 @@ const applyConfig = async () => {
 
     <!-- ===== 3. 专家模式 ===== -->
     <div v-show="activeTab === 'advanced'" class="flex-1 flex flex-col space-y-4 h-full pb-4">
-      <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start space-x-3">
-        <ExclamationTriangleIcon class="w-6 h-6 text-amber-500 flex-shrink-0" />
-        <div class="text-xs text-amber-700 dark:text-amber-200/80 leading-relaxed">
-          <strong class="text-amber-600 dark:text-amber-400">{{ t('settings.dangerWarning') }}</strong>：{{ t('settings.advancedWarning') }}
+      <div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200/60 dark:border-amber-500/20 rounded-2xl p-4 flex items-start space-x-3 shadow-sm">
+        <ExclamationTriangleIcon class="w-6 h-6 text-amber-600 dark:text-amber-500 flex-shrink-0" />
+        <div class="text-[13px] text-black dark:text-amber-200 leading-relaxed font-medium">
+          <strong class="text-amber-700 dark:text-amber-400 font-bold text-sm">{{ t('settings.dangerWarning') }}</strong>：{{ t('settings.advancedWarning') }}
         </div>
       </div>
 
@@ -334,8 +334,8 @@ const applyConfig = async () => {
       </div>
 
       <button @click="applyConfig"
-        class="w-full theme-bg-card hover:bg-indigo-600 hover:text-white border theme-border-input theme-text rounded-xl py-3.5 font-bold flex justify-center items-center space-x-2 transition-all shadow-lg">
-        <DocumentTextIcon class="w-5 h-5 text-emerald-500" />
+        class="w-full theme-bg-card hover:bg-indigo-600 hover:text-white border theme-border-input theme-text rounded-2xl py-4 font-bold flex justify-center items-center space-x-2 transition-all shadow-lg active:scale-[0.98]">
+        <DocumentTextIcon class="w-6 h-6 text-emerald-500" />
         <span>{{ t('settings.applyNow') }}</span>
       </button>
     </div>
@@ -352,23 +352,31 @@ const applyConfig = async () => {
     </div>
 
     <!-- ===== GeoData 更新日志弹窗 ===== -->
-    <div v-show="showGeoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div class="theme-bg-card w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[80vh] border theme-border-secondary">
-        <div class="p-4 border-b theme-border flex items-center space-x-2 bg-indigo-50/50 dark:bg-indigo-900/20">
-          <ArrowPathIcon v-if="isUpdatingGeo" class="w-5 h-5 text-indigo-500 animate-spin" />
-          <CheckCircleIcon v-else class="w-5 h-5 text-emerald-500" />
-          <h3 class="font-bold theme-text">{{ t('settings.geodataUpdateLogTitle') || 'GeoData Update Log' }}</h3>
+    <div v-show="showGeoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-all duration-300">
+      <div class="theme-bg-card w-full max-w-md rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[80vh] border theme-border-secondary transition-transform scale-100">
+        <!-- Header -->
+        <div class="p-5 border-b theme-border flex items-center space-x-3 bg-indigo-500/5 dark:bg-indigo-500/10">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+            <ArrowPathIcon v-if="isUpdatingGeo" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 animate-spin" />
+            <CheckCircleIcon v-else class="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <h3 class="font-bold theme-text text-lg leading-tight">{{ t('settings.geodataUpdateLogTitle') || 'GeoData Update Log' }}</h3>
+            <p class="text-xs theme-text-secondary mt-0.5">{{ isUpdatingGeo ? t('settings.updatingGeodata') : t('settings.updateSuccess') || 'Updated successfully' }}</p>
+          </div>
         </div>
-        <div class="p-4 flex-1 overflow-y-auto theme-bg-terminal">
-          <pre class="text-xs font-mono theme-text-secondary whitespace-pre-wrap break-all">{{ geoUpdateLogs }}</pre>
+        <!-- Terminal / Content -->
+        <div class="p-4 flex-1 overflow-y-auto theme-bg-terminal border-b theme-border-secondary">
+          <pre class="text-[11px] font-mono theme-text-secondary whitespace-pre-wrap break-all leading-relaxed">{{ geoUpdateLogs }}</pre>
         </div>
-        <div class="p-4 border-t theme-border bg-gray-50 dark:bg-zinc-900/50 flex justify-end">
+        <!-- Footer -->
+        <div class="p-5 bg-gray-50/50 dark:bg-zinc-900/50 flex justify-end">
           <button @click="showGeoModal = false" :disabled="isUpdatingGeo"
-            class="px-6 py-2 rounded-xl font-bold transition-all"
+            class="w-full sm:w-auto px-10 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             :class="isUpdatingGeo 
-              ? 'bg-gray-200 dark:bg-zinc-700 text-gray-400 dark:text-zinc-500 cursor-not-allowed' 
-              : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20'">
-            {{ t('settings.close') || 'Close' }}
+              ? 'bg-indigo-600/20 text-indigo-400' 
+              : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-500/25'">
+            {{ isUpdatingGeo ? t('settings.updating') : t('settings.close') || 'Close' }}
           </button>
         </div>
       </div>

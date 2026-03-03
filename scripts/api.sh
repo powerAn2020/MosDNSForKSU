@@ -59,6 +59,25 @@ get_setting() {
     echo "$default"
 }
 
+sync_settings_to_config() {
+    # 从 settings.json 同步到 YAML 配置
+    local listen_port=$(get_setting "listen_port" "5335")
+    local proxy_port=$(get_setting "proxy_port" "7874")
+    
+    # 同步监听端口到 config.yaml
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -i "s/listen: \":*.*\"/listen: \":${listen_port}\"/" "$CONFIG_FILE"
+        sed -i "s/listen: :[0-9]*/listen: :${listen_port}/" "$CONFIG_FILE"
+    fi
+    
+    # 同步代理端口到 dns.yaml
+    local dns_yaml="${CONF_DIR}/dns.yaml"
+    if [ -f "$dns_yaml" ]; then
+        # 匹配 127.0.0.1:端口 的格式进行替换
+        sed -i "s/127\.0\.0\.1:[0-9]*/127.0.0.1:${proxy_port}/g" "$dns_yaml"
+    fi
+}
+
 # ============================================================
 # 服务管理（原 start.sh / stop.sh / status.sh）
 # ============================================================
@@ -91,6 +110,9 @@ cmd_start() {
         tail -n 1000 "$LOG_FILE" > "${LOG_FILE}.tmp"
         mv "${LOG_FILE}.tmp" "$LOG_FILE"
     fi
+
+    # 同步设置到配置
+    sync_settings_to_config
 
     # 启动 mosdns
     nohup "$MOSDNS_BIN" start -c "$CONFIG_FILE" -d "$CONF_DIR" > /dev/null 2>&1 &
@@ -386,9 +408,9 @@ cmd_reset_config() {
 cmd_get_log() {
     local lines="${1:-100}"
     if [ -f "$LOG_FILE" ]; then
-        local content
-        content=$(tail -n "$lines" "$LOG_FILE" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}')
-        echo "{\"code\":0,\"data\":\"$content\"}"
+        echo -n '{"code":0,"data":"'
+        tail -n "$lines" "$LOG_FILE" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}' | tr -d '\n'
+        echo '"}'
     else
         echo '{"code":0,"data":""}'
     fi

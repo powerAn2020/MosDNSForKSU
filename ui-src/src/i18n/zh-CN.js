@@ -68,6 +68,7 @@ export default {
         cancel: '取消',
         saveSuccess: '保存成功',
         saveFail: '保存失败',
+        updating: '更新中...',
     },
     log: {
         title: '运行日志',

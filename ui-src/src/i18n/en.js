@@ -68,6 +68,7 @@ export default {
         cancel: 'Cancel',
         saveSuccess: 'Saved successfully',
         saveFail: 'Save failed',
+        updating: 'Updating...',
     },
     log: {
         title: 'Runtime Log',

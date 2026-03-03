@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { execApi } from '@/api/kernelsu'
+import { execApi, spawnApi } from '@/api/kernelsu'
 import { 
   ArrowPathIcon,
   TrashIcon,
@@ -20,13 +20,21 @@ const fetchLogs = async () => {
   if (isLoading.value) return
   isLoading.value = true
   try {
-    const res = await execApi('get_log', '100')
-    if (res.code === 0 && res.data) {
-      logs.value = res.data.split('\n').filter(l => l.trim() !== '')
+    // 使用 spawnApi 非阻塞调用，设置 30s 超时
+    const res = await spawnApi('get_log', '100', { timeout: 30000 })
+    
+    if (res.code === 0) {
+      // spawnApi 在 JSON 解析失败时会将原始输出放在 res.raw 中
+      const logData = res.data || res.raw || ''
+      logs.value = logData.split('\n').filter(l => l.trim() !== '')
       if (isAutoRefresh.value) scrollToBottom()
+    } else {
+      // 显示错误信息
+      logs.value = [`ERROR (Spawn API): ${res.msg || 'Process failed'}`, `Code: ${res.code}`]
     }
   } catch (e) {
-    console.error('Failed to fetch logs', e)
+    console.error('Failed to fetch logs via spawnApi', e)
+    logs.value = [`ERROR (Exception): ${e.message}`]
   } finally {
     isLoading.value = false
   }
@@ -41,12 +49,20 @@ const toggleAutoRefresh = () => { isAutoRefresh.value = !isAutoRefresh.value }
 const clearLogs = () => { logs.value = [] }
 
 const formatLog = (logLine) => {
-  if (logLine.includes(' error ') || logLine.includes(' ERROR '))
+  // 处理解析失败的情况
+  if (logLine.startsWith('ERROR (JSON Parse):')) {
+    return `<span class="text-rose-500 font-bold underline">${logLine}</span>`
+  }
+
+  // MosDNS 日志通常格式: 2024-03-02T12:34:56.789Z INFO ...
+  if (/\b(error|ERROR)\b/.test(logLine))
     return `<span class="text-rose-400 font-medium">${logLine}</span>`
-  if (logLine.includes(' warn ') || logLine.includes(' WARN '))
+  if (/\b(warn|WARN)\b/.test(logLine))
     return `<span class="text-amber-400">${logLine}</span>`
-  if (logLine.includes(' info ') || logLine.includes(' INFO '))
-    return `<span class="text-emerald-500 px-1">INFO</span> ${logLine.replace(/INFO/i, '')}`
+  if (/\b(info|INFO)\b/.test(logLine)) {
+    // 突出显示 INFO 标签，但不删除它，保留原始完整性
+    return logLine.replace(/\b(info|INFO)\b/g, '<span class="text-emerald-500 font-bold px-1">INFO</span>')
+  }
   return `<span class="theme-text-secondary">${logLine}</span>`
 }
 
