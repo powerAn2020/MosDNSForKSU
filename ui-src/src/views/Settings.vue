@@ -65,12 +65,12 @@ const fetchRawConfigs = async () => {
   try {
     const res = await execApi('get_config')
     if (res.code === 0 && res.data) {
-       const unescape = (str) => str ? str.replace(/\\n/g, '\n') : ''
-       rawConfigs.value.whitelist = unescape(res.data.whitelist)
-       rawConfigs.value.greylist = unescape(res.data.greylist)
-       rawConfigs.value.config = unescape(res.data.config)
-       rawConfigs.value.dns = unescape(res.data.dns)
-       rawConfigs.value.dat_exec = unescape(res.data.dat_exec)
+       const decode = (b64) => b64 ? decodeURIComponent(escape(atob(b64))) : ''
+       rawConfigs.value.whitelist = decode(res.data.whitelist)
+       rawConfigs.value.greylist = decode(res.data.greylist)
+       rawConfigs.value.config = decode(res.data.config)
+       rawConfigs.value.dns = decode(res.data.dns)
+       rawConfigs.value.dat_exec = decode(res.data.dat_exec)
     }
   } catch (e) { console.error('Failed to fetch configs', e) }
 }
@@ -137,15 +137,11 @@ const updateGeoData = async () => {
 
 const saveSingleConfig = async (type, content) => {
   try {
-    // 1. 停止服务
-    await execApi('stop')
+    // 1. 编码为 base64
+    const b64 = btoa(unescape(encodeURIComponent(content)))
     
     // 2. 保存文件
-    const safeContent = content.replace(/'/g, "'\\''")
-    const res = await execApi('save_config', `${type} '${safeContent}'`)
-    
-    // 3. 启动服务
-    await execApi('start')
+    const res = await execApi('save_config', `${type} '${b64}'`)
     
     if (res.code === 0) {
       showToast(`${type} ${t('settings.saveSuccess')}`)
@@ -153,13 +149,15 @@ const saveSingleConfig = async (type, content) => {
     } else {
       showToast(`${type} ${t('settings.saveFail')}: ${res.msg}`, 'error')
     }
-    // 4. 刷新状态
+    // 3. 刷新状态
     await appStore.fetchStatus()
   } catch(e) { 
     console.error(e)
     showToast(t('settings.saveFail'), 'error')
   }
 }
+
+
 
 const applyConfig = async () => {
   openConfirm(t('settings.confirmTitle'), t('settings.applyConfirm'), async () => {

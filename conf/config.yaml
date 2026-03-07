@@ -10,22 +10,41 @@ include:
   - "/data/adb/mosdns/conf/dns.yaml"
 
 plugins:
+  ################ 分路计数器（每个名称只注册一次） ################
+  - tag: mc_reject
+    type: sequence
+    args:
+      - exec: metrics_collector reject
+
+  - tag: mc_cn
+    type: sequence
+    args:
+      - exec: metrics_collector cn
+
+  - tag: mc_nocn
+    type: sequence
+    args:
+      - exec: metrics_collector nocn
+
   ################ 预处理序列 ################
   - tag: reject_qtype65
     type: sequence
     args:
+      - exec: $mc_reject
       - exec: query_summary reject_qtype65
       - exec: reject 3
 
   - tag: reject_null_domain
     type: sequence
     args:
+      - exec: $mc_reject
       - exec: query_summary reject_null_domain
       - exec: reject 3
 
   - tag: reject_ad
     type: sequence
     args:
+      - exec: $mc_reject
       - exec: query_summary reject_adlist
       - exec: reject 3
 
@@ -50,12 +69,14 @@ plugins:
   - tag: dns_nocn_seq
     type: sequence
     args:
+      - exec: $mc_nocn
       - exec: query_summary dns_nocn
       - exec: $dns_nocn
 
   - tag: dns_cn_seq
     type: sequence
     args:
+      - exec: $mc_cn
       - exec: query_summary dns_cn
       - exec: $dns_cn
 
@@ -68,12 +89,14 @@ plugins:
   - tag: fallback_seq
     type: sequence
     args:
+      - exec: $mc_nocn
       - exec: query_summary fallback
       - exec: $dns_nocn
 
   - tag: forward_remote_seq
     type: sequence
     args:
+      - exec: $mc_nocn
       - exec: query_summary forward_remote
       - exec: $forward_remote
 

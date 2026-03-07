@@ -25,7 +25,9 @@ const fetchLogs = async () => {
     
     if (res.code === 0) {
       // spawnApi 在 JSON 解析失败时会将原始输出放在 res.raw 中
-      const logData = res.data || res.raw || ''
+      const rawData = res.data || res.raw || ''
+      // base64 解码
+      const logData = rawData ? decodeURIComponent(escape(atob(rawData))) : ''
       logs.value = logData.split('\n').filter(l => l.trim() !== '')
       if (isAutoRefresh.value) scrollToBottom()
     } else {

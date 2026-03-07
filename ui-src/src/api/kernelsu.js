@@ -267,33 +267,37 @@ function getMockResponse(cmd) {
         case 'get_metrics':
             return {
                 code: 0,
-                data: `# HELP mosdns_query_total Total queries
-# TYPE mosdns_query_total counter
-mosdns_query_total{type="udp"} 12503
-mosdns_query_total{type="tcp"} 432
-# HELP plugin_query_total Total queries matched
-# TYPE plugin_query_total counter
-plugin_query_total{plugin="dns_cn"} 8432
-plugin_query_total{plugin="dns_nocn"} 4021
-plugin_query_total{plugin="cache_lan"} 211
-plugin_query_total{plugin="reject_ad"} 132`
+                data: btoa(`# HELP mosdns_metrics_collector_query_total The total number of queries pass through
+# TYPE mosdns_metrics_collector_query_total counter
+mosdns_metrics_collector_query_total{name="metrics"} 12935
+mosdns_metrics_collector_query_total{name="cn"} 8432
+mosdns_metrics_collector_query_total{name="nocn"} 4021
+mosdns_metrics_collector_query_total{name="reject"} 132
+# HELP mosdns_cache_hit_total The total number of queries that hit the cache
+# TYPE mosdns_cache_hit_total counter
+mosdns_cache_hit_total{tag="cache_lan"} 0
+mosdns_cache_hit_total{tag="cache_wan"} 200
+# HELP mosdns_cache_lazy_hit_total The total number of queries that hit the expired cache
+# TYPE mosdns_cache_lazy_hit_total counter
+mosdns_cache_lazy_hit_total{tag="cache_lan"} 0
+mosdns_cache_lazy_hit_total{tag="cache_wan"} 11`)
             }
 
         case 'get_log':
             return {
                 code: 0,
-                data: '2023-10-27T10:00:00Z INFO mosdns started\n2023-10-27T10:01:00Z WARN something happened\n'
+                data: btoa('2023-10-27T10:00:00Z INFO mosdns started\n2023-10-27T10:01:00Z WARN something happened\n')
             }
 
         case 'get_config':
             return {
                 code: 0,
                 data: {
-                    whitelist: '# whitelist example\\ndomain: baidu.com',
-                    greylist: '# greylist example\\ndomain: google.com',
-                    config: '# config.yaml content',
-                    dns: '# dns.yaml content',
-                    dat_exec: '# dat_exec.yaml content'
+                    whitelist: btoa('# whitelist example\ndomain: baidu.com'),
+                    greylist: btoa('# greylist example\ndomain: google.com'),
+                    config: btoa('# config.yaml content'),
+                    dns: btoa('# dns.yaml content'),
+                    dat_exec: btoa('# dat_exec.yaml content')
                 }
             }
 

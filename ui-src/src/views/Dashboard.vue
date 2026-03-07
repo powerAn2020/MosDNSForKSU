@@ -24,19 +24,22 @@ const fetchMetrics = async () => {
   try {
     const res = await execApi('get_metrics')
     if (res.code === 0 && res.data) {
-      const lines = res.data.split('\n')
+      const text = decodeURIComponent(escape(atob(res.data)))
+      const lines = text.split('\n')
       let total = 0, cn = 0, nocn = 0, reject = 0, cache = 0
       lines.forEach(line => {
-        if (line.startsWith('mosdns_query_total')) {
-          const match = line.match(/ (\d+)$/)
-          if (match) total += parseInt(match[1])
-        }
-        if (line.startsWith('plugin_query_total')) {
+        // mosdns v5 metrics_collector 格式: mosdns_metrics_collector_query_total{name="xxx"} 123
+        if (line.startsWith('mosdns_metrics_collector_query_total{')) {
           const val = parseInt(line.match(/ (\d+)$/)?.[1] || 0)
-          if (line.includes('plugin="dns_cn"')) cn += val
-          if (line.includes('plugin="dns_nocn"')) nocn += val
-          if (line.includes('reject')) reject += val
-          if (line.includes('cache')) cache += val
+          if (line.includes('name="metrics"')) total += val
+          if (line.includes('name="cn"')) cn += val
+          if (line.includes('name="nocn"')) nocn += val
+          if (line.includes('name="reject"')) reject += val
+        }
+        // 缓存命中: mosdns_cache_hit_total{tag="xxx"} + mosdns_cache_lazy_hit_total{tag="xxx"}
+        if (line.startsWith('mosdns_cache_hit_total{') || line.startsWith('mosdns_cache_lazy_hit_total{')) {
+          const val = parseInt(line.match(/ (\d+)$/)?.[1] || 0)
+          cache += val
         }
       })
       stats.value = { total, cn, nocn, reject, cache }

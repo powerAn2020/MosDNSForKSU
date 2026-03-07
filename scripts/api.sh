@@ -121,7 +121,14 @@ cmd_start() {
     # 同步设置到配置
     sync_settings_to_config
 
-    # 启动 mosdns
+    # 启动 mosdns（设置 CA 证书路径，确保 DoH/DoT TLS 验证正常）
+    if [ -d "/apex/com.android.conscrypt/cacerts" ]; then
+        export SSL_CERT_DIR="/apex/com.android.conscrypt/cacerts"
+    elif [ -d "/system/etc/security/cacerts" ]; then
+        export SSL_CERT_DIR="/system/etc/security/cacerts"
+    fi
+    # 设置时区，使日志时间与系统一致
+    export TZ=$(getprop persist.sys.timezone 2>/dev/null || echo "Asia/Shanghai")
     nohup "$MOSDNS_BIN" start -c "$CONFIG_FILE" -d "$CONF_DIR" > /dev/null 2>&1 &
     MOSDNS_PID=$!
     sleep 1
@@ -143,40 +150,26 @@ cmd_start() {
 }
 
 cmd_stop() {
-    # 检查 DNS 重定向配置
+    # 清理 DNS 重定向
     redirect=$(get_setting "dns_redirect" "false")
     if [ "$redirect" = "true" ]; then
-        # 清理 iptables
         cmd_redirect_disable > /dev/null 2>&1
     fi
+
+    # 使用 mosdns stop 停止服务
+    if [ -x "$MOSDNS_BIN" ]; then
+        "$MOSDNS_BIN" stop -d "$CONF_DIR" 2>/dev/null
+    fi
+
+    # 清理残留进程（兜底）
+    sleep 1
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            kill "$PID"
-            for i in $(seq 1 10); do
-                kill -0 "$PID" 2>/dev/null || break
-                sleep 0.5
-            done
-            # 强制杀死
-            kill -0 "$PID" 2>/dev/null && kill -9 "$PID"
-            rm -f "$PID_FILE"
-            rm -f "$START_FILE"
-            json_ok "mosdns stopped"
-        else
-            rm -f "$PID_FILE"
-            json_ok "mosdns was not running, cleaned pid file"
-        fi
-    else
-        PIDS=$(pidof mosdns)
-        if [ -n "$PIDS" ]; then
-            kill $PIDS 2>/dev/null
-            sleep 1
-            kill -9 $PIDS 2>/dev/null
-            json_ok "mosdns stopped (found by process name)"
-        else
-            json_ok "mosdns is not running"
-        fi
+        kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null
     fi
+
+    rm -f "$PID_FILE" "$START_FILE"
+    json_ok "mosdns stopped"
 }
 
 cmd_status() {
@@ -247,27 +240,27 @@ cmd_reload() {
 # ============================================================
 
 cmd_get_config() {
-    local config_content=""
-    local dns_content=""
-    local dat_exec_content=""
-    local whitelist_content=""
-    local greylist_content=""
+    local config_b64=""
+    local dns_b64=""
+    local dat_exec_b64=""
+    local whitelist_b64=""
+    local greylist_b64=""
 
-    [ -f "${CONF_DIR}/config.yaml" ] && config_content=$(cat "${CONF_DIR}/config.yaml" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}')
-    [ -f "${CONF_DIR}/dns.yaml" ] && dns_content=$(cat "${CONF_DIR}/dns.yaml" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}')
-    [ -f "${CONF_DIR}/dat_exec.yaml" ] && dat_exec_content=$(cat "${CONF_DIR}/dat_exec.yaml" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}')
-    [ -f "${RULE_DIR}/whitelist.txt" ] && whitelist_content=$(cat "${RULE_DIR}/whitelist.txt" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}')
-    [ -f "${RULE_DIR}/greylist.txt" ] && greylist_content=$(cat "${RULE_DIR}/greylist.txt" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}')
+    [ -f "${CONF_DIR}/config.yaml" ] && config_b64=$(base64 -w 0 "${CONF_DIR}/config.yaml")
+    [ -f "${CONF_DIR}/dns.yaml" ] && dns_b64=$(base64 -w 0 "${CONF_DIR}/dns.yaml")
+    [ -f "${CONF_DIR}/dat_exec.yaml" ] && dat_exec_b64=$(base64 -w 0 "${CONF_DIR}/dat_exec.yaml")
+    [ -f "${RULE_DIR}/whitelist.txt" ] && whitelist_b64=$(base64 -w 0 "${RULE_DIR}/whitelist.txt")
+    [ -f "${RULE_DIR}/greylist.txt" ] && greylist_b64=$(base64 -w 0 "${RULE_DIR}/greylist.txt")
 
     cat <<EOF
 {
   "code": 0,
   "data": {
-    "config": "$config_content",
-    "dns": "$dns_content",
-    "dat_exec": "$dat_exec_content",
-    "whitelist": "$whitelist_content",
-    "greylist": "$greylist_content"
+    "config": "$config_b64",
+    "dns": "$dns_b64",
+    "dat_exec": "$dat_exec_b64",
+    "whitelist": "$whitelist_b64",
+    "greylist": "$greylist_b64"
   }
 }
 EOF
@@ -275,33 +268,25 @@ EOF
 
 cmd_save_config() {
     local config_type="$1"
-    local content="$2"
+    local b64_content="$2"
 
     case "$config_type" in
-        config)    echo "$content" > "${CONF_DIR}/config.yaml" ;;
-        dns)       echo "$content" > "${CONF_DIR}/dns.yaml" ;;
-        dat_exec)  echo "$content" > "${CONF_DIR}/dat_exec.yaml" ;;
-        whitelist) echo "$content" > "${RULE_DIR}/whitelist.txt" ;;
-        greylist)  echo "$content" > "${RULE_DIR}/greylist.txt" ;;
+        config)    echo "$b64_content" | base64 -d > "${CONF_DIR}/config.yaml" ;;
+        dns)       echo "$b64_content" | base64 -d > "${CONF_DIR}/dns.yaml" ;;
+        dat_exec)  echo "$b64_content" | base64 -d > "${CONF_DIR}/dat_exec.yaml" ;;
+        whitelist) echo "$b64_content" | base64 -d > "${RULE_DIR}/whitelist.txt" ;;
+        greylist)  echo "$b64_content" | base64 -d > "${RULE_DIR}/greylist.txt" ;;
         *)         json_error 1 "unknown config type: $config_type"; return ;;
     esac
     json_ok "config saved: $config_type"
 }
 
 cmd_apply_config() {
-    # 验证配置语法
-    if [ -x "$MOSDNS_BIN" ]; then
-        result=$("$MOSDNS_BIN" start -c "$CONFIG_FILE" -d "$CONF_DIR" --dry-run 2>&1)
-        if [ $? -ne 0 ]; then
-            result=$(echo "$result" | sed 's/"/\\"/g' | head -5 | tr '\n' ' ')
-            json_error 2 "config validation failed: $result"
-            return
-        fi
-    fi
-
-    # 重启服务
+    # 重启服务以应用新配置
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-        cmd_reload
+        cmd_stop > /dev/null 2>&1
+        sleep 1
+        cmd_start
     else
         json_ok "config saved, service not running"
     fi
@@ -422,9 +407,9 @@ cmd_reset_config() {
 cmd_get_log() {
     local lines="${1:-100}"
     if [ -f "$LOG_FILE" ]; then
-        echo -n '{"code":0,"data":"'
-        tail -n "$lines" "$LOG_FILE" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}' | tr -d '\n'
-        echo '"}'
+        local b64
+        b64=$(tail -n "$lines" "$LOG_FILE" | base64 -w 0)
+        echo "{\"code\":0,\"data\":\"$b64\"}"
     else
         echo '{"code":0,"data":""}'
     fi
@@ -457,8 +442,9 @@ cmd_get_metrics() {
               curl -s "http://${api_addr}/metrics" 2>/dev/null || echo "")
 
     if [ -n "$metrics" ]; then
-        metrics=$(echo "$metrics" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}')
-        echo "{\"code\":0,\"data\":\"$metrics\"}"
+        local b64
+        b64=$(echo "$metrics" | base64 -w 0)
+        echo "{\"code\":0,\"data\":\"$b64\"}"
     else
         json_error 1 "failed to fetch metrics"
     fi

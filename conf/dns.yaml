@@ -1,7 +1,7 @@
 plugins:
   ################ 国内 DNS ################
 
-  # 阿里 DNS (DoH + DoT + H3)
+  # 阿里 DNS (DoH + DoT)
   - tag: ali
     type: forward
     args:
@@ -14,9 +14,6 @@ plugins:
         - addr: "tls://dns.alidns.com"
           dial_addr: "223.5.5.5"
           enable_pipeline: true
-        - addr: "https://dns.alidns.com/dns-query"
-          dial_addr: "223.5.5.5"
-          enable_http3: true
 
   # DNSPod (DoH + DoT)
   - tag: dnspod
@@ -37,7 +34,7 @@ plugins:
 
   ################ 境外 DNS ################
 
-  # Google DNS (DoH + DoT + H3)
+  # Google DNS (DoH + DoT)
   - tag: google
     type: forward
     args:
@@ -53,12 +50,6 @@ plugins:
         - addr: "tls://dns.google"
           dial_addr: "8.8.4.4"
           enable_pipeline: true
-        - addr: "https://dns.google/dns-query"
-          dial_addr: "8.8.8.8"
-          enable_http3: true
-        - addr: "https://dns.google/dns-query"
-          dial_addr: "8.8.4.4"
-          enable_http3: true
 
   # Cloudflare DNS (DoH + DoT)
   - tag: cloudflare
